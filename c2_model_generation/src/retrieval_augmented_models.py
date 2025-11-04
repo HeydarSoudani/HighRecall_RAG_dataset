@@ -39,17 +39,17 @@ class BasicRAG:
             self.retriever = DenseRetriever(args)
 
     # --- Information Extraction Functions
-    def get_think(text):
+    def get_think(self, text):
         pattern = re.compile(r"<think>(.*?)</think>", re.DOTALL)
         matches = pattern.findall(text)
         return matches[0] if matches else None
 
     def get_query(self, text):
-        pattern = re.compile(r"<search>\s*search query:\s*(.*?)\s*</search>", re.DOTALL)
+        pattern = re.compile(r"<search>(.*?)</search>", re.DOTALL)
         matches = pattern.findall(text)
         return matches[0] if matches else None
 
-    def get_answer(text):
+    def get_answer(self, text):
         pattern = re.compile(r"<answer>(.*?)</answer>", re.DOTALL)
         matches = pattern.findall(text)
         return matches[0] if matches else None
@@ -183,11 +183,10 @@ class SearchR1_Model(BasicRAG):
             messages = [{"role": "user", "content": input_prompt}]
 
         one_step_think = self.get_think(output_text)
-        pred_answer = self.get_answer(output_text)
-        reasoning_path.append({'think': one_step_think, 'prediction': pred_answer})
+        prediction = self.get_answer(output_text)
+        reasoning_path.append({'think': one_step_think, 'prediction': prediction})
             
-        return pred_answer, reasoning_path
-
+        return reasoning_path, prediction
 
 class StepSearch_Model(BasicRAG):
     def __init__(self, device, args):

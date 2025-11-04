@@ -7,9 +7,10 @@ import numpy as np
 from tqdm import tqdm
 
 from utils.general_utils import set_seed
-from c2_generation.src.retrieval_augmented_models import *
-from c2_generation.src.correctness_evaluation import f1_qald_score, em_score
+from c2_model_generation.src.retrieval_augmented_models import *
+from c2_model_generation.src.correctness_evaluation import f1_qald_score, em_score
 
+os.environ["OPENAI_API_KEY"] = ''
 
 def generation(args):
     # === Read input data ========================
@@ -44,6 +45,12 @@ def generation(args):
         generation_model = NoRetrieval(args.device, args)
     elif args.generation_model == 'single_retrieval':
         generation_model = SingleRetrieval(args.device, args)
+    elif args.generation_model == 'research':
+        generation_model = ReSearch_Model(args.device, args)
+    elif args.generation_model == 'search_r1':
+        generation_model = SearchR1_Model(args.device, args)
+    elif args.generation_model == 'step_search':
+        generation_model = StepSearch_Model(args.device, args)
     else:
         raise NotImplementedError
     
@@ -54,7 +61,7 @@ def generation(args):
     
     with open(args.generation_results_file, 'a') as res_f:
         for i, (qid, sample) in enumerate(tqdm(filtered_dataset.items(), desc=f"inferencing ...")):
-            # if i == 5:
+            # if i == 3:
             #     break
             file_id, qid, query, gt_answer = sample['file_id'], sample['qid'], sample['query'], sample['updated_answer']
             reasoning_path, prediction = generation_model.inference(query)
@@ -88,7 +95,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     
     # Generation
-    parser.add_argument('--model_name_or_path', type=str, default='deepseek/deepseek-chat-v3-0324', choices=[
+    parser.add_argument('--model_name_or_path', type=str, default='openai/gpt-4o', choices=[
         "openai/gpt-4o", "anthropic/claude-sonnet-4.5", "google/gemini-2.5-flash",
         "deepseek/deepseek-chat-v3-0324", "qwen/qwen3-235b-a22b-2507",
         # 
@@ -99,15 +106,16 @@ if __name__ == "__main__":
     parser.add_argument('--fraction_of_data_to_use', type=float, default=1.0)
     
     # Retriever
-    parser.add_argument('--generation_model', type=str, default='no_retrieval', choices=[
+    parser.add_argument('--generation_model', type=str, default='search_r1', choices=[
         'no_retrieval', 'single_retrieval', 
         'research', 'search_r1', 'step_search'
     ])
-    parser.add_argument('--retriever_name', type=str, default='bm25', choices=[
+    parser.add_argument('--retriever_name', type=str, default='rerank_l6', choices=[
         'bm25', 'rerank_l6', 'rerank_l12', 'contriever', 'dpr', 'e5', 'bge'
     ])
-    parser.add_argument('--data_dir', type=str, default='data/corpus')
-    parser.add_argument('--corpus_path', type=str, default='data/corpus/wiki-18.jsonl')
+    
+    parser.add_argument('--index_dir', type=str, default='corpus_datasets/indices')
+    parser.add_argument('--corpus_path', type=str, default='corpus_datasets/enwiki_20251001.jsonl')
     parser.add_argument('--retrieval_topk', type=int, default=3)
     parser.add_argument('--faiss_gpu', action='store_false', help='Use GPU for computation')
     parser.add_argument('--retrieval_query_max_length', type=int, default=64)
@@ -132,17 +140,6 @@ if __name__ == "__main__":
     else:
         print("CUDA is not available. No GPUs detected.")
     
-    # === Files ====================
-    model_ = args.model_name_or_path.split('/')[-1]
-    if args.generation_model in ['no_retrieval']:
-        args.output_dir = f"run_output/{args.run}/{model_}/{args.generation_model}"
-    else:
-        args.output_dir = f"run_output/{args.run}/{model_}/{args.generation_model}_{args.retriever_name}"
-    os.makedirs(args.output_dir, exist_ok=True)
-    
-    args.generation_results_file = f"{args.output_dir}/generation_results.jsonl"
-    args.dataset_file = f"processed_files/wikidata_totallist.jsonl"
-    
     # === Models ====================
     if args.generation_model == 'research':
         args.model_name_or_path = "agentrl/ReSearch-Qwen-7B-Instruct"
@@ -156,11 +153,26 @@ if __name__ == "__main__":
         args.model_name_or_path = "Zill1/StepSearch-7B-Base"
         args.model_source = 'hf_local'
 
-    if args.model_name_or_path in ["openai/gpt-4o", "anthropic/claude-sonnet-4.5", "google/gemini-2.5-flash", "deepseek/deepseek-chat-v3-0324", "qwen/qwen3-235b-a22b-2507"]:
+    if args.model_name_or_path in [
+        "openai/gpt-4o", "anthropic/claude-sonnet-4.5", "google/gemini-2.5-flash", 
+        "deepseek/deepseek-chat-v3-0324", "qwen/qwen3-235b-a22b-2507"
+    ]:
         args.model_source = 'api'
+    
+    # === Files ====================
+    model_ = args.model_name_or_path.split('/')[-1]
+    if args.generation_model in ['no_retrieval']:
+        args.output_dir = f"run_output/{args.run}/{model_}/{args.generation_model}"
+    else:
+        args.output_dir = f"run_output/{args.run}/{model_}/{args.generation_model}_{args.retriever_name}"
+    os.makedirs(args.output_dir, exist_ok=True)
+    
+    args.generation_results_file = f"{args.output_dir}/generation_results.jsonl"
+    args.dataset_file = f"corpus_datasets/qald_aggregation_samples/wikidata_totallist.jsonl"
+    
     
     # === Run ========================
     set_seed(args.seed)
     generation(args)
     
-    # python c2_generation/llm_inference.py
+    # python c2_model_generation/model_inference.py

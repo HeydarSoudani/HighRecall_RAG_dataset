@@ -131,7 +131,7 @@ def parse_jsonl(stream: io.TextIOBase) -> Iterator[Tuple[str, str, str]]:
             except Exception:
                 continue
         title = (obj.get("title") or "").strip()
-        text = (obj.get("text") or obj.get("content") or "").strip()
+        text = (obj.get("text") or obj.get("contents") or "").strip()
         doc_id = str(obj.get("id") or obj.get("_id") or "")
         if title and text:
             yield (doc_id, title, text)
@@ -213,7 +213,7 @@ def to_passages():
                         rec: Dict[str, str] = {
                             "id": pid,
                             "title": title,
-                            "content": chunk
+                            "contents": chunk
                         }
                         out_f.write(json.dumps(rec, ensure_ascii=False) + "\n")
                         total_passages += 1

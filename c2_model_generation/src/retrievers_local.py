@@ -71,9 +71,31 @@ def load_corpus(corpus_path: str):
     )
     return corpus
 
+# def load_docs(corpus, doc_idxs):
+#     results = [corpus[str(idx)] for idx in doc_idxs]
+#     # results = [corpus[idx] for idx in doc_idxs]
+#     return results
+
 def load_docs(corpus, doc_idxs):
-    results = [corpus[int(idx)] for idx in doc_idxs]
-    return results
+    # doc_idxs can be a NumPy array; make sure it's a plain list of ints
+    doc_idxs = [int(i) for i in doc_idxs]
+
+    # pandas DataFrame: select rows by position
+    if hasattr(corpus, "iloc"):
+        # returns a DataFrame of the selected rows
+        return corpus.iloc[doc_idxs]
+
+    # HuggingFace Dataset or list-like
+    if isinstance(corpus, list):
+        return [corpus[i] for i in doc_idxs]
+
+    # dict keyed by integer ids
+    if isinstance(corpus, dict):
+        # only use this if your keys are ints that align with positions
+        return [corpus[i] for i in doc_idxs]
+
+    # Fallback: try positional access
+    return [corpus[int(i)] for i in doc_idxs]
 
 class Encoder:
     def __init__(self, model_name, model_path, pooling_method, max_length, use_fp16):
@@ -183,11 +205,11 @@ class BaseRetriever:
         self.topk = config.retrieval_topk
         self._docid_to_doc = None
         if config.retriever_name in ['bm25', 'rerank_l6', 'rerank_l12']:
-            self.index_path = f"{config.data_dir}/bm25"    
+            self.index_path = f"{config.index_dir}/bm25_index"
             self.pooling_method = None
             self.retrieval_model_path = "cross-encoder/ms-marco-MiniLM-L-6-v2" # "cross-encoder/ms-marco-MiniLM-L-6-v2", "cross-encoder/ms-marco-MiniLM-L12-v2"
         else:
-            self.index_path = f"{config.data_dir}/{config.retriever_name}_Flat.index"
+            self.index_path = f"{config.index_dir}/{config.retriever_name}_Flat.index"
             self.retrieval_model_path = MODEL2PATH[config.retriever_name]
             self.pooling_method = MODEL2POOLING[config.retriever_name]
 
@@ -308,7 +330,8 @@ class RerankRetriever(BaseRetriever):
             hits = hits[:first_stage_num]
         
         if self.contain_doc:
-            all_contents = [json.loads(self.searcher.doc(hit.docid).raw())['contents'] for hit in hits]
+            # all_contents = [json.loads(self.searcher.doc(hit.docid).raw())['contents'] for hit in hits]
+            all_contents = [json.loads(self.searcher.doc(hit.docid).raw()) for hit in hits]
         else:
             docids = [hit.docid for hit in hits]
             all_contents = load_docs(self.corpus, docids)
@@ -345,6 +368,8 @@ class DenseRetriever(BaseRetriever):
 
         print('loading corpus ...')
         self.corpus = load_corpus(self.corpus_path)
+        print(self.corpus)
+        print(self.corpus[0])
         self.encoder = Encoder(
             model_name = config.retriever_name,
             model_path = self.retrieval_model_path,
@@ -360,13 +385,17 @@ class DenseRetriever(BaseRetriever):
             num = self.topk
         query_emb = self.encoder.encode(query)
         scores, idxs = self.index.search(query_emb, k=num)
-        idxs = idxs[0]
-        scores = scores[0]
+        idxs = idxs[0].tolist()
+        scores = scores[0].tolist()
+        
         results = load_docs(self.corpus, idxs)
-        if return_score:
-            return results, scores.tolist()
-        else:
-            return results
+        return (results, scores) if return_score else results
+        
+        # results = load_docs(self.corpus, idxs)
+        # if return_score:
+        #     return results, scores.tolist()
+        # else:
+        #     return results
 
     def _batch_search(self, query_list: List[str], num: int = None, return_score: bool = False):
         if isinstance(query_list, str):
