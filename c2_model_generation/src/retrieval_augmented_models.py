@@ -6,9 +6,9 @@ import torch
 import transformers
 
 from utils.general_utils import passages2string
-from c2_generation.src.llm_generator import LLMGenerator_api, LLMGenerator_hf_local
-from c2_generation.src.retrievers_local import BM25Retriever, RerankRetriever, DenseRetriever
-from c2_generation.src.prompt_templetes import (
+from c2_model_generation.src.llm_generator import LLMGenerator_api, LLMGenerator_hf_local
+from c2_model_generation.src.retrievers_local import BM25Retriever, RerankRetriever, DenseRetriever
+from c2_model_generation.src.prompt_templetes import (
     SYSTEM_PROMPT_NO_RETRIEVAL,
     SYSTEM_PROMPT_SINGLE_RETRIEVAL,
     SYSTEM_PROMPT_RESEARCH_INST,

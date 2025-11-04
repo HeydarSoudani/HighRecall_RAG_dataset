@@ -13,8 +13,8 @@ module load Python/3.12.3-GCCcore-13.3.0
 
 
 ### === Set variables ==========================
-model_name_or_path="PeterJinGo/SearchR1-nq_hotpotqa_train-qwen2.5-7b-em-ppo-v0.3"
-generation_model="search_r1"
+model_name_or_path="Zill1/StepSearch-7B-Base"
+generation_model="step_search"
 retriever_name="rerank_l6"
 run="run_1"
 
