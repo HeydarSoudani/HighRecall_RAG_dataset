@@ -55,6 +55,16 @@ class LLMGenerator_hf_local:
         self.rar_stopping_criteria = transformers.StoppingCriteriaList([StopOnSequence(rar_sequences, self.tokenizer)])
         self.rar_answer_stopping_criteria = transformers.StoppingCriteriaList([StopOnSequence(rar_answer_sequences, self.tokenizer)])
     
+        # SearchO1
+        searcho1_sequences = ["<|end_search_query|>", " <|end_search_query|>", "<|end_search_query|>\n", " <|end_search_query|>\n", "<|end_search_query|>\n\n", " <|end_search_query|>\n\n"]
+        searcho1_res_sequences = ["<|end_search_result|>", " <|end_search_result|>", "<|end_search_result|>\n", " <|end_search_result|>\n", "<|end_search_result|>\n\n", " <|end_search_result|>\n\n"]
+        self.searcho1_stopping_criteria = transformers.StoppingCriteriaList([StopOnSequence(searcho1_sequences, self.tokenizer)])
+
+        # SelfAsk
+        selfask_sequences = ["Context:", "#", "Intermediate answer:" , "Intermediate answer: ", "\nIntermediate answer:"]
+        self.selfask_stopping_criteria = transformers.StoppingCriteriaList([StopOnSequence(selfask_sequences, self.tokenizer)])
+    
+    
     def generate(
         self,
         messages,

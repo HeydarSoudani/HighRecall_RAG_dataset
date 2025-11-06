@@ -15,6 +15,8 @@ import requests
 import argparse
 from pathlib import Path
 from typing import Iterator, Tuple, Dict
+from SPARQLWrapper import SPARQLWrapper, JSON
+
 
 
 def download_raw_dump(input_url: str, output_path: str, chunk_size: int = 8192):
@@ -166,10 +168,46 @@ def iter_all_chunk_files(root: Path) -> Iterator[Path]:
             if fn.startswith("wiki_") or fn.endswith(".bz2") or fn.endswith(".json") or fn.endswith(".jsonl"):
                 yield Path(dirpath) / fn
 
+def get_wikidata_qid(pageid=None, title=None):
+    if not pageid and not title:
+        raise ValueError("You must provide either a pageid or a title.")
+
+    base_url = "https://en.wikipedia.org/w/api.php"
+    params = {
+        "action": "query",
+        "prop": "pageprops",
+        "format": "json",
+    }
+
+    if pageid:
+        params["pageids"] = pageid
+    else:
+        params["titles"] = title
+
+    headers = {
+        "User-Agent": "HeydarSoudaniBot/1.0 (heydar@example.com)"
+        # replace with your email or website if you have one
+    }
+
+    response = requests.get(base_url, params=params, headers=headers)
+    response.raise_for_status()
+    data = response.json()
+
+    pages = data.get("query", {}).get("pages", {})
+    if not pages:
+        return None
+
+    page_info = next(iter(pages.values()))
+    if "missing" in page_info:
+        return None
+
+    return page_info.get("pageprops", {}).get("wikibase_item")
+
+
 def to_passages():
     ap = argparse.ArgumentParser(description="Split Wikipedia articles into fixed-size passages and write JSONL.")
-    ap.add_argument("--input_root", type=str, default="data/enwiki-20251001", help="Path to processed Wikipedia dump root (e.g., enwiki-20251001)")
-    ap.add_argument("--output_jsonl", type=str, default="data/enwiki_20251001.jsonl", help="Output JSONL file path")
+    ap.add_argument("--input_root", type=str, default="corpus_datasets/enwiki-20251001", help="Path to processed Wikipedia dump root (e.g., enwiki-20251001)")
+    ap.add_argument("--output_jsonl", type=str, default="corpus_datasets/enwiki_20251001.jsonl", help="Output JSONL file path")
     ap.add_argument("--words-per-passage", type=int, default=100, help="Number of words per passage (default: 100)")
     ap.add_argument("--min-words", type=int, default=20, help="Skip passages with fewer words than this (default: 20)")
     ap.add_argument("--skip-empty-titles", action="store_true", help="Skip docs without a title")
@@ -203,6 +241,7 @@ def to_passages():
                         base = doc_id
                     else:
                         base = hashlib.md5(title.encode("utf-8", errors="ignore")).hexdigest()[:12]
+                    # wikidata_qid = get_wikidata_qid(doc_id, title)
 
                     chunk_idx = 0
                     for chunk in chunk_by_words(text, args.words_per_passage):
@@ -213,6 +252,7 @@ def to_passages():
                         rec: Dict[str, str] = {
                             "id": pid,
                             "title": title,
+                            # "wikidata_qid": wikidata_qid,
                             "contents": chunk
                         }
                         out_f.write(json.dumps(rec, ensure_ascii=False) + "\n")
@@ -270,12 +310,12 @@ if __name__ == "__main__":
     
     ### --- Step 3: Convert wiki dump to jsonl corpus
     # Src: Dense Passage Retrieval for Open-Domain Question Answering, EMNLP 2020
-    # to_passages()
+    to_passages()
     
-    index = 1
-    line = read_jsonl_line('downloads/enwiki_20251001.jsonl', index)
-    print(line)
+    # index = 1
+    # line = read_jsonl_line('downloads/enwiki_20251001.jsonl', index)
+    # print(line)
 
     
-# python c1_dataset_creation/dump2corpus.py
+# python c1_corpus_dataset_preparation/dump2corpus.py
     

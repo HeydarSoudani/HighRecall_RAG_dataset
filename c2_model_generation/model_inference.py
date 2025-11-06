@@ -13,6 +13,15 @@ from c2_model_generation.src.correctness_evaluation import f1_qald_score, em_sco
 os.environ["OPENAI_API_KEY"] = ''
 
 def generation(args):
+    print("\n== Generation ...")
+    print(f"""
+        Model name:  {args.model_name_or_path}
+        Gen. Model:  {args.generation_model}
+        Retriever:   {args.retriever_name}
+        Seed:        {args.seed}
+        Run:         {args.run}
+    """.replace('        ', ''))
+    
     # === Read input data ========================
     query_ids, test_dataset = [], {}
     if os.path.exists(args.dataset_file):
@@ -45,6 +54,12 @@ def generation(args):
         generation_model = NoRetrieval(args.device, args)
     elif args.generation_model == 'single_retrieval':
         generation_model = SingleRetrieval(args.device, args)
+    elif args.generation_model == 'self_ask':
+        generation_model = SelfAsk_Model(args.device, args)
+    elif args.generation_model == 'react':
+        generation_model = ReAct_Model(args.device, args)
+    elif args.generation_model == 'search_o1':
+        generation_model = SearchO1_Model(args.device, args)
     elif args.generation_model == 'research':
         generation_model = ReSearch_Model(args.device, args)
     elif args.generation_model == 'search_r1':
@@ -95,7 +110,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     
     # Generation
-    parser.add_argument('--model_name_or_path', type=str, default='openai/gpt-4o', choices=[
+    parser.add_argument('--model_name_or_path', type=str, default='google/gemini-2.5-flash', choices=[
         "openai/gpt-4o", "anthropic/claude-sonnet-4.5", "google/gemini-2.5-flash",
         "deepseek/deepseek-chat-v3-0324", "qwen/qwen3-235b-a22b-2507",
         # 
@@ -106,15 +121,16 @@ if __name__ == "__main__":
     parser.add_argument('--fraction_of_data_to_use', type=float, default=1.0)
     
     # Retriever
-    parser.add_argument('--generation_model', type=str, default='search_r1', choices=[
-        'no_retrieval', 'single_retrieval', 
+    parser.add_argument('--generation_model', type=str, default='react', choices=[
+        'no_retrieval', 'single_retrieval',
+        'self_ask', 'react', 'search_o1',
         'research', 'search_r1', 'step_search'
     ])
-    parser.add_argument('--retriever_name', type=str, default='rerank_l6', choices=[
+    parser.add_argument('--retriever_name', type=str, default='e5', choices=[
         'bm25', 'rerank_l6', 'rerank_l12', 'contriever', 'dpr', 'e5', 'bge'
     ])
     
-    parser.add_argument('--index_dir', type=str, default='corpus_datasets/indices')
+    parser.add_argument('--index_dir', type=str, default='/projects/0/prjs0834/heydars/INDICES')
     parser.add_argument('--corpus_path', type=str, default='corpus_datasets/enwiki_20251001.jsonl')
     parser.add_argument('--retrieval_topk', type=int, default=3)
     parser.add_argument('--faiss_gpu', action='store_false', help='Use GPU for computation')
@@ -125,6 +141,7 @@ if __name__ == "__main__":
     parser.add_argument("--bm25_b", type=float, default=0.4)
     
     # Others
+    parser.add_argument('--max_iter', type=int, default=10)
     parser.add_argument('--device', type=int, default=0)
     parser.add_argument('--run', type=str, default='run_1')
     parser.add_argument("--seed", type=int, default=10)
@@ -153,6 +170,11 @@ if __name__ == "__main__":
         args.model_name_or_path = "Zill1/StepSearch-7B-Base"
         args.model_source = 'hf_local'
 
+    elif args.generation_model in ['self_ask', 'react', 'search_o1']:
+        args.model_name_or_path = "Qwen/Qwen2.5-7B-Instruct"
+        args.model_source = 'hf_local'
+
+        
     if args.model_name_or_path in [
         "openai/gpt-4o", "anthropic/claude-sonnet-4.5", "google/gemini-2.5-flash", 
         "deepseek/deepseek-chat-v3-0324", "qwen/qwen3-235b-a22b-2507"

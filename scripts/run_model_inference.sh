@@ -1,11 +1,11 @@
 #!/bin/bash
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --gpus=1
+#SBATCH --gpus=3
 #SBATCH --cpus-per-task=4
-#SBATCH --partition=gpu_h100
-#SBATCH --time=1:00:00
-#SBATCH --mem=20GB
+#SBATCH --partition=gpu_a100
+#SBATCH --time=0:50:00
+#SBATCH --mem=120GB
 #SBATCH --output=script_logging/slurm_%A.out
 
 module load 2024
@@ -13,9 +13,9 @@ module load Python/3.12.3-GCCcore-13.3.0
 
 
 ### === Set variables ==========================
-model_name_or_path="Zill1/StepSearch-7B-Base"
-generation_model="step_search"
-retriever_name="rerank_l6"
+model_name_or_path="agentrl/ReSearch-Qwen-7B-Instruct"
+generation_model="react"
+retriever_name="contriever"
 run="run_1"
 
 

@@ -1,10 +1,11 @@
+import tqdm
 import time
 import random
-import tqdm
-from typing import Dict, List, Optional, Set, Tuple
 from urllib.parse import unquote
 from urllib.error import HTTPError
 from SPARQLWrapper import SPARQLWrapper, JSON
+from typing import Dict, List, Optional, Set, Tuple
+
 
 WDQS_ENDPOINT = "https://query.wikidata.org/sparql"
 MW_API = "https://en.wikipedia.org/w/api.php"
@@ -167,7 +168,7 @@ def get_properties_of_subclass(subclass_qid, limit=100, endpoint=WDQS_ENDPOINT):
     sparql.setReturnFormat(JSON)
     sparql.addCustomHttpHeader('User-Agent', 'vscode (mrafiee@umass.edu)')
     results = safe_query(sparql)
-
+    print(results)
     properties = []
     for result in results["results"]["bindings"]:
         prop_uri = result["property"]["value"]

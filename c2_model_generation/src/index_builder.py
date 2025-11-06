@@ -363,12 +363,27 @@ class Index_Builder:
                 faiss_index.train(all_embeddings)
             faiss_index.add(all_embeddings)
             faiss_index = faiss.index_gpu_to_cpu(faiss_index)
-        else:
-            
+        else:       
             if not faiss_index.is_trained:
                 faiss_index.train(all_embeddings)
+        
             faiss_index.add(all_embeddings)
+            
+        # Free big arrays before serializing
+        import gc
+        try:
+            del all_embeddings
+        except NameError:
+            pass
+        gc.collect()
 
+        # If you used GPU elsewhere:
+        try:
+            import torch
+            torch.cuda.empty_cache()
+        except Exception:
+            pass    
+        
         faiss.write_index(faiss_index, self.index_save_path)
         print("Finish!")
 
@@ -432,9 +447,26 @@ if __name__ == "__main__":
 
 
 
+# def add_in_batches(index, x, bs=50_000):
+#     n = x.shape[0]
+#     for i in range(0, n, bs):
+#         index.add(x[i:i+bs])
+# add_in_batches(faiss_index, all_embeddings, bs=50_000)
 
+# Free big arrays before serializing
+# import gc
+# try:
+#     del all_embeddings
+# except NameError:
+#     pass
+# gc.collect()
 
-
+# # If you used GPU elsewhere:
+# try:
+#     import torch
+#     torch.cuda.empty_cache()
+# except Exception:
+#     pass
 
 # if self.have_contents:
 #     shutil.copyfile(self.corpus_path, temp_file_path)
