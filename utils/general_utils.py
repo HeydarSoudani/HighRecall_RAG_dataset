@@ -20,9 +20,13 @@ def set_seed(seed):
 def passages2string(retrieval_result):
     format_reference = ''
     for idx, doc_item in enumerate(retrieval_result):       
-        content = doc_item['contents']
-        # content = doc_item['document']['contents']
-        title = content.split("\n")[0]
-        text = "\n".join(content.split("\n")[1:])
+        if 'title' in doc_item:
+            text = doc_item['contents']
+            title = doc_item['title']
+        else:
+            content = doc_item['contents']
+            title = content.split("\n")[0]
+            text = "\n".join(content.split("\n")[1:])
+            
         format_reference += f"Doc {idx+1} (Title: {title}) {text}\n"
     return format_reference

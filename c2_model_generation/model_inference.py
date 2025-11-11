@@ -121,12 +121,12 @@ if __name__ == "__main__":
     parser.add_argument('--fraction_of_data_to_use', type=float, default=1.0)
     
     # Retriever
-    parser.add_argument('--generation_model', type=str, default='react', choices=[
+    parser.add_argument('--generation_model', type=str, default='single_retrieval', choices=[
         'no_retrieval', 'single_retrieval',
         'self_ask', 'react', 'search_o1',
         'research', 'search_r1', 'step_search'
     ])
-    parser.add_argument('--retriever_name', type=str, default='e5', choices=[
+    parser.add_argument('--retriever_name', type=str, default='contriever', choices=[
         'bm25', 'rerank_l6', 'rerank_l12', 'contriever', 'dpr', 'e5', 'bge'
     ])
     

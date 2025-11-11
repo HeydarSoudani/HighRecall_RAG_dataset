@@ -352,7 +352,7 @@ class DenseRetriever(BaseRetriever):
         self.index = faiss.read_index(self.index_path)
         if config.faiss_gpu:
             print("Using FAISS with GPU ...")
-            # --- Multi-GPUs
+            # --- Multi-GPUs: Only run with A100 (2 GPUs), H100 leads to an error
             co = faiss.GpuMultipleClonerOptions()
             co.useFloat16 = True
             co.shard = True

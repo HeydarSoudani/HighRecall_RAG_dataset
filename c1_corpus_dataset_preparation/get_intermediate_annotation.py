@@ -14,8 +14,10 @@ from typing import Optional, Dict, Any, List
 
 from src.prompt_templetes import SYSTEM_PROMPT_SPARQL_LIST
 
+os.environ["OPENAI_API_KEY"] = ''
 
-def run_sparql(input_file, output_file, endpoint=None, retries: int = 2, timeout_seconds: int = 30):
+
+def get_annotations(input_file, output_file, endpoint=None, retries: int = 2, timeout_seconds: int = 30):
     
     ### --- Input data -------------------
     input_path = Path(input_file)
@@ -123,14 +125,43 @@ def run_sparql(input_file, output_file, endpoint=None, retries: int = 2, timeout
             return match.group(1)
         return None
 
+    def get_wikipedia_title_from_qid(qid, lang="en"):
+        url = "https://www.wikidata.org/w/api.php"
+        params = {
+            "action": "wbgetentities",
+            "ids": qid,
+            "format": "json",
+            "props": "sitelinks",
+            "sitefilter": f"{lang}wiki",
+        }
+        headers = {"User-Agent": "HeydarSoudani-ResearchBot/1.0 (https://example.com; heydar.soudani@ru.nl)"}
+
+        try:
+            response = requests.get(url, params=params, headers=headers)
+            response.raise_for_status()
+            data = response.json()
+
+            entity = data.get("entities", {}).get(qid, {})
+            sitelinks = entity.get("sitelinks", {})
+            wiki_key = f"{lang}wiki"
+
+            if wiki_key in sitelinks:
+                return sitelinks[wiki_key]["title"]
+            else:
+                return None
+
+        except Exception as e:
+            print(f"Error fetching {qid}: {e}")
+            return None
+
 
     ### -- main loop --------------------    
     with open(input_path, "r", encoding="utf-8") as in_f, open(output_file, "w", encoding="utf-8") as out_f:
         for idx, line in enumerate(tqdm(in_f)):
-            # if idx == 50:
+            # if idx == 6:
             #     break
             
-            # --- Read the sample ---------------
+            # --- Read the sample ----------------
             if not line.strip():
                 continue
             try:
@@ -149,7 +180,7 @@ def run_sparql(input_file, output_file, endpoint=None, retries: int = 2, timeout
             if not sparql_text.strip():
                 continue
             
-            # --- Get the updated answer ---------
+            # --- Get the updated answer ------------------------------
             ep = choose_endpoint(sparql_text)
             try:
                 result_json = run_query(ep, sparql_text)
@@ -167,7 +198,13 @@ def run_sparql(input_file, output_file, endpoint=None, retries: int = 2, timeout
                 print("ERROR:", e)
                 updated_answer = ""
             
-            # --- get the new sparql ---------------
+            # --- Get main entity -------------------------------------
+            main_qids = sorted(set(re.findall(r'\bwd:(Q[1-9]\d*)\b', sparql_text)))
+
+            # --- Get main property -----------------------------------
+            properties = sorted(set(re.findall(r'\bP[1-9]\d*\b', sparql_text)))
+            
+            # --- get the new sparql for intermediate answers ---------
             parts = re.split(r'(XMLSchema#>)', sparql_text, maxsplit=1)
             if len(parts) > 1:
                 prefixes = parts[0] + parts[1]
@@ -185,7 +222,7 @@ def run_sparql(input_file, output_file, endpoint=None, retries: int = 2, timeout
             sparql_query_list = extract_converted_query(completion.choices[0].message.content).replace('\n', '')
             new_sparql_query = prefixes + sparql_query_list
             
-            # --- Get the intermediate answers -------
+            # --- Get the intermediate answers ---------------------------
             intermidate_list = []
             ep = choose_endpoint(new_sparql_query)
             try:
@@ -208,7 +245,13 @@ def run_sparql(input_file, output_file, endpoint=None, retries: int = 2, timeout
                 print("-" * 80)
                 print()
 
+            # --- Edit on final answer ----------------------------------- 
             updated_answer_ = "yes" if updated_answer == "true" else "no" if updated_answer == "false" else updated_answer
+            match = re.match(r"^https?://www\.wikidata\.org/entity/(Q\d+)$", updated_answer)
+            if match:
+                updated_answer_ = get_wikipedia_title_from_qid(match.group(1))
+
+            # --- Write in file ------------------------------------------
             item = {
                 "file_id": file_id,
                 "qid": qid,
@@ -216,6 +259,8 @@ def run_sparql(input_file, output_file, endpoint=None, retries: int = 2, timeout
                 "dataset_answer": answer_value,
                 "updated_answer": updated_answer_,
                 "is_changed": not (str(answer_value) == str(updated_answer)),
+                "main_entities": main_qids,
+                "properties": properties,
                 "intermidate_list": intermidate_list
             }
             out_f.write(json.dumps(item, ensure_ascii=False) + "\n")
@@ -227,60 +272,10 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     # === Files ====================
-    input_file = "processed_files/wikidata_aggregation.jsonl"
-    output_file = "processed_files/wikidata_totallist.jsonl"
+    input_file = "corpus_datasets/qald_aggregation_samples/wikidata_aggregation.jsonl"
+    output_file = "corpus_datasets/qald_aggregation_samples/wikidata_totallist_1.jsonl"
     
-    run_sparql(input_file, output_file)
+    get_annotations(input_file, output_file)
 
 
-# python c1_dataset_creation/run_sparqls.py
-    
-    
-
-
-
-
-
-
-
-#     input_prompt_template = Template("""You are an expert in SPARQL and semantic web data. 
-# You are tasked to rewrite the SPARQL query so that instead of returning a boolean or an aggregate value, 
-# it returns the list of items that contribute to that result.
-
-# The input SPARQL query may:
-# - Contain multiple PREFIX declarations.
-# - Use SELECT, SELECT DISTINCT, or ASK forms.
-# - Contain subqueries like SELECT (COUNT(...)) inside other SELECT or ASK blocks.
-# - Use aggregates like COUNT(?x), COUNT(DISTINCT ?x), AVG(...), etc.
-# - Have arbitrary spacing or capitalization.
-
-# Your goal:
-# 1. Identify the variable being counted or aggregated (e.g., ?writer in COUNT(DISTINCT ?writer)).
-# 2. Produce a clean query that **lists those distinct items** instead of counting them.
-#    - Use `SELECT DISTINCT ?var ?varLabel`.
-# 3. Keep all relevant PREFIX declarations intact.
-# 4. Keep the WHERE patterns that determine which entities are counted.
-# 5. Add the following service if not already present:
-#    `SERVICE wikibase:label { bd:serviceParam wikibase:language "[AUTO_LANGUAGE],en". }`
-# 6. Ignore outer aggregations like AVG or ASK and focus on the innermost counted variable.
-# 7. If the query cannot be recognized as a count-type query, return exactly:
-#    `the pattern is not recognized`.
-
-# Format the result as valid SPARQL.
-
-# Example:
-# Input:
-# SELECT (COUNT(DISTINCT ?writer) AS ?result) WHERE { ?writer wdt:P27 wd:Q17; wdt:P106 wd:Q36180. }
-
-# Output:
-# SELECT DISTINCT ?writer ?writerLabel
-# WHERE {
-#   ?writer wdt:P27 wd:Q17;
-#           wdt:P106 wd:Q36180.
-#   SERVICE wikibase:label { bd:serviceParam wikibase:language "[AUTO_LANGUAGE],en". }
-# }
-
-# Here is my input query:
-# $sparql_query
-
-# Return your answer as a JSON object with a single field "converted_query".""")
+# python c1_corpus_dataset_preparation/get_intermediate_annotation.py
